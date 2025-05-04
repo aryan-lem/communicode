@@ -1,0 +1,36 @@
+# Project specific
+**/src/main/resources/application.properties
+**/src/main/resources/application-*.properties
+!**/src/main/resources/application.properties.template
+.env
+.env.*
+!.env.example
+
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+# IDE - VSCode
+.vscode/
+.settings/
+.classpath
+.project
+
+# IntelliJ
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Compiled files
+/dist/
+/build/
+
+# Logs
+logs/
+*.log
+
+./communicode/src/main/resources/application.yml
+./communicode/src/main/resources/application.properties
