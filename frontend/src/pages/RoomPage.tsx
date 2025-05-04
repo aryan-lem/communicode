@@ -5,6 +5,7 @@ import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
+import './RoomPage.css';
 
 // Define participant type
 interface Participant {
@@ -35,6 +36,32 @@ interface CodeChangePayload {
   timestamp: string;
 }
 
+// Add this new interface for execution results
+interface ExecutionResult {
+  output: string;
+  error?: string;
+  executionTime?: number;
+  language?: string;
+  code?: string;
+}
+
+// Add language mapping for Piston
+const languageMap: Record<string, string> = {
+  'javascript': 'nodejs',
+  'typescript': 'typescript',
+  'python': 'python3',
+  'java': 'java',
+  'c': 'c',
+  'cpp': 'cpp',
+  'csharp': 'csharp',
+  'php': 'php',
+  'ruby': 'ruby',
+  'go': 'go',
+  'rust': 'rust',
+  'html': 'html',
+  'css': 'css'
+};
+
 const RoomPage: React.FC = () => {
   const { roomId } = useParams<{ roomId: string }>();
   const { user } = useAuth();
@@ -49,6 +76,14 @@ const RoomPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [stompClient, setStompClient] = useState<Client | null>(null);
+
+  // Add these new state variables for code execution
+  const [isExecuting, setIsExecuting] = useState<boolean>(false);
+  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [isOutputVisible, setIsOutputVisible] = useState<boolean>(false);
+
+  const [stdinInput, setStdinInput] = useState<string>('');
+  const [activeTab, setActiveTab] = useState<'output' | 'input'>('output');
 
   // Fetch room details
   useEffect(() => {
@@ -96,6 +131,7 @@ const RoomPage: React.FC = () => {
   useEffect(() => {
     console.log("Participants updated:", participants);
   }, [participants]);
+
   // Connect to WebSocket
   useEffect(() => {
     if (!roomId || !user) return;
@@ -201,6 +237,7 @@ const RoomPage: React.FC = () => {
       return () => { }; // Return empty function as cleanup
     }
   }, [roomId, user]);
+
   // Update the language change handler for the select dropdown
   const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newLanguage = e.target.value;
@@ -221,6 +258,7 @@ const RoomPage: React.FC = () => {
       }
     }
   };
+
   const handleCodeChange = (value: string | undefined) => {
     if (value === undefined) return;
 
@@ -242,6 +280,112 @@ const RoomPage: React.FC = () => {
       }
     }
   };
+
+  // // Add this new function to execute code using Piston
+  // const executeCode = async () => {
+  //   if (!code.trim()) {
+  //     setExecutionResult({ 
+  //       output: "", 
+  //       error: "Please write some code first" 
+  //     });
+  //     setIsOutputVisible(true);
+  //     return;
+  //   }
+
+  //   try {
+  //     setIsExecuting(true);
+  //     setIsOutputVisible(true);
+
+  //     const pistonLanguage = languageMap[language] || language;
+
+  //     // Using the Piston API
+  //     const response = await axios.post('https://emkc.org/api/v2/piston/execute', {
+  //       language: pistonLanguage,
+  //       version: "*", // Latest version
+  //       files: [
+  //         {
+  //           name: "main",
+  //           content: code
+  //         }
+  //       ],
+  //       stdin: "", // You could add an input field for this
+  //       args: []
+  //     });
+
+  //     const result = response.data;
+
+  //     setExecutionResult({
+  //       output: result.run.stdout || "",
+  //       error: result.run.stderr || result.compile?.stderr || "",
+  //       executionTime: result.run.time,
+  //       language: language,
+  //       code: code
+  //     });
+
+  //   } catch (error) {
+  //     console.error("Error executing code", error);
+  //     setExecutionResult({
+  //       output: "",
+  //       error: "Failed to execute code. API or network error."
+  //     });
+  //   } finally {
+  //     setIsExecuting(false);
+  //   }
+  // };
+  // Update the executeCode function to include the stdin input
+  const executeCode = async () => {
+    if (!code.trim()) {
+      setExecutionResult({
+        output: "",
+        error: "Please write some code first"
+      });
+      setIsOutputVisible(true);
+      setActiveTab('output');
+      return;
+    }
+
+    try {
+      setIsExecuting(true);
+      setIsOutputVisible(true);
+      setActiveTab('output');
+
+      const pistonLanguage = languageMap[language] || language;
+
+      // Using the Piston API with stdin input
+      const response = await axios.post('https://emkc.org/api/v2/piston/execute', {
+        language: pistonLanguage,
+        version: "*", // Latest version
+        files: [
+          {
+            name: "main",
+            content: code
+          }
+        ],
+        stdin: stdinInput, // Use the stdin input from state
+        args: []
+      });
+
+      const result = response.data;
+
+      setExecutionResult({
+        output: result.run.stdout || "",
+        error: result.run.stderr || result.compile?.stderr || "",
+        executionTime: result.run.time,
+        language: language,
+        code: code
+      });
+
+    } catch (error) {
+      console.error("Error executing code", error);
+      setExecutionResult({
+        output: "",
+        error: "Failed to execute code. API or network error."
+      });
+    } finally {
+      setIsExecuting(false);
+    }
+  };
+
 
   if (loading) {
     return <div className="loading-screen">Loading editor...</div>;
@@ -278,13 +422,30 @@ const RoomPage: React.FC = () => {
             <option value="typescript">TypeScript</option>
             <option value="python">Python</option>
             <option value="java">Java</option>
+            <option value="c">C</option>
+            <option value="cpp">C++</option>
             <option value="csharp">C#</option>
+            <option value="php">PHP</option>
+            <option value="ruby">Ruby</option>
+            <option value="go">Go</option>
+            <option value="rust">Rust</option>
+            <option value="html">HTML</option>
+            <option value="css">CSS</option>
           </select>
           <button className="share-button" onClick={() => {
             navigator.clipboard.writeText(window.location.href);
             alert('Room link copied to clipboard!');
           }}>
             Share Room
+          </button>
+
+          {/* Add Run Code button */}
+          <button
+            className="run-button"
+            onClick={executeCode}
+            disabled={isExecuting}
+          >
+            {isExecuting ? 'Running...' : 'Run Code'}
           </button>
         </div>
       </div>
@@ -311,19 +472,115 @@ const RoomPage: React.FC = () => {
           </ul>
         </div>
 
-        <div className="code-editor-wrapper">
-          <Editor
-            height="100%"
-            language={language}
-            value={code}
-            onChange={handleCodeChange}
-            theme="vs-dark"
-            options={{
-              fontSize: 14,
-              minimap: { enabled: true },
-              automaticLayout: true
-            }}
-          />
+        <div className="code-area">
+          <div className="code-editor-wrapper" style={{ height: isOutputVisible ? '60%' : '100%' }}>
+            <Editor
+              height="100%"
+              language={language}
+              value={code}
+              onChange={handleCodeChange}
+              theme="vs-dark"
+              options={{
+                fontSize: 14,
+                minimap: { enabled: true },
+                automaticLayout: true
+              }}
+            />
+            <button
+              className="io-toggle"
+              onClick={() => setIsOutputVisible(!isOutputVisible)}
+              title={isOutputVisible ? "Hide input/output panel" : "Show input/output panel"}
+            >
+              {isOutputVisible ? "▼" : "▲"}
+            </button>
+          </div>
+
+          {isOutputVisible && (
+            <div className="output-section">
+              <div className="output-header">
+                <h3>Output</h3>
+                <div className="output-actions">
+                  {executionResult && !isExecuting && (
+                    <button
+                      className="rerun-button"
+                      onClick={executeCode}
+                      disabled={isExecuting}
+                    >
+                      {isExecuting ? 'Running...' : '⟳ Run Again'}
+                    </button>
+                  )}
+                  <button
+                    className="close-output"
+                    onClick={() => setIsOutputVisible(false)}
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+
+              <div className="io-tabs">
+                <button
+                  className={`io-tab ${activeTab === 'output' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('output')}
+                >
+                  Output
+                </button>
+                <button
+                  className={`io-tab ${activeTab === 'input' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('input')}
+                >
+                  Input
+                </button>
+              </div>
+
+              {activeTab === 'output' ? (
+                <div className="output-content">
+                  {isExecuting ? (
+                    <div className="loading-indicator">
+                      <div className="spinner"></div>
+                      <span>Executing code...</span>
+                    </div>
+                  ) : executionResult ? (
+                    <>
+                      {executionResult.error && (
+                        <div className="error-output">{executionResult.error}</div>
+                      )}
+                      {executionResult.output ? (
+                        <pre className="code-output">{executionResult.output}</pre>
+                      ) : !executionResult.error && (
+                        <div className="empty-output">Program executed with no output</div>
+                      )}
+                      <div className="execution-meta">
+                        {executionResult.executionTime !== undefined && (
+                          <span>Time: {executionResult.executionTime.toFixed(3)}s</span>
+                        )}
+                        {executionResult.language && (
+                          <span>Language: {executionResult.language}</span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="empty-output">Run your code to see output</div>
+                  )}
+                </div>
+              ) : (
+                <div className="input-area">
+                  <textarea
+                    className="input-textarea"
+                    value={stdinInput}
+                    onChange={(e) => setStdinInput(e.target.value)}
+                    placeholder="Enter program input here (stdin)..."
+                    spellCheck="false"
+                  />
+                  <div className="input-footer">
+                    <div className="input-info">
+                      This input will be provided to your program when it runs
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
